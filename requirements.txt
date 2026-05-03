@@ -1,0 +1,13 @@
+requests
+fastapi  
+pydantic  
+dotenv  
+streamlit
+python-dotenv
+tabulate
+langchain
+langchain-community
+langchain-ollama
+langgraph
+langchain_core
+langchain-tavily
