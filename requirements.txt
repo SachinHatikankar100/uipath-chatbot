@@ -11,3 +11,5 @@ langchain-ollama
 langgraph
 langchain_core
 langchain-tavily
+langchain-openai
+nemoguardrails
