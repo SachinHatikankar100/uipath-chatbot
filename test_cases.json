@@ -1,0 +1,72 @@
+[
+    {
+        "query": "show me faulted jobs",
+        "expected_tool": "get_faulted_jobs_tool",
+        "category": "happy_path"
+    },
+    {
+        "query": "what jobs are running right now?",
+        "expected_tool": "get_running_jobs_tool",
+        "category": "happy_path"
+    },
+    {
+        "query": "show me successful jobs",
+        "expected_tool": "get_successful_jobs_tool",
+        "category": "happy_path"
+    },
+    {
+        "query": "any suspended jobs?",
+        "expected_tool": "get_suspended_jobs_tool",
+        "category": "happy_path"
+    },
+    {
+        "query": "how many queues do I have?",
+        "expected_tool": "get_queue_count_tool",
+        "category": "happy_path"
+    },
+    {
+        "query": "how many assets?",
+        "expected_tool": "get_asset_count_tool",
+        "category": "happy_path"
+    },
+    {
+        "query": "show queue processing status",
+        "expected_tool": "get_queue_item_status_tool",
+        "category": "happy_path"
+    },
+    {
+        "query": "list all available processes",
+        "expected_tool": "get_available_processes_tool",
+        "category": "happy_path"
+    },
+    {
+        "query": "why are my jobs failing?",
+        "expected_tool": "analyze_faulted_jobs_tool",
+        "category": "ambiguous"
+    },
+    {
+        "query": "what's wrong with my processes?",
+        "expected_tool": "analyze_faulted_jobs_tool",
+        "category": "ambiguous"
+    },
+    {
+        "query": "show me faulted jobs",
+        "expected_tool": "get_faulted_jobs_tool",
+        "category": "memory"
+    },
+    {
+        "query": "why are they failing?",
+        "expected_tool": "analyze_faulted_jobs_tool",
+        "category": "memory"
+    },
+    {
+        "query": "fix my jobs",
+        "expected_tool": "analyze_faulted_jobs_tool",
+        "category": "negative"
+    },
+    {
+        "query": "something is broken",
+        "expected_tool": "analyze_faulted_jobs_tool",
+        "category": "negative"
+    }
+]

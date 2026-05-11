@@ -13,6 +13,15 @@ from langgraph.prebuilt import create_react_agent
 from langchain_tavily import TavilySearch
 from pydantic import BaseModel
 from nemoguardrails import RailsConfig, LLMRails
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+from langchain_community.cache import InMemoryCache
+from langchain_core.globals import set_llm_cache
+
+# -------------------------
+# LLM Caching
+# -------------------------
+set_llm_cache(InMemoryCache())
+print("✅ LLM Cache active") #Keeping this because it will tell whether cache is working 
 
 # -------------------------
 # Structured Output Models
@@ -76,22 +85,51 @@ HEADERS = {
 }
 
 # -------------------------
+# Retry configuration
+# -------------------------
+orchestrator_retry = retry(
+stop = stop_after_attempt(3),
+wait = wait_exponential(multiplier=1, min=2, max=10),
+retry = retry_if_exception_type(requests.exceptions.RequestException),
+reraise=True
+)
+
+
+# -------------------------
 # API Helpers
 # -------------------------
+@orchestrator_retry
 def call_orchestrator(url: str):
     response = requests.get(url, headers=HEADERS)
+    #response = requests.get("http://localhost:9999", headers=HEADERS) - this for testing url retry
+    if response.status_code == 401:
+        return None, "Unauthorized - check your UiPath access token."
+    if response.status_code == 429:
+        raise requests.exceptions.RequestException("Rate limited - retrying...")
+    if response.status_code >= 500:
+        raise requests.exceptions.RequestException(f"Server error {response.status_code} - retrying...")
     if response.status_code != 200:
-        return None, f"❌ API failed | {response.status_code} | {response.text}"
+        return None, f"API failed | {response.status_code} | {response.text}"
     return response.json(), None
 
-
+@orchestrator_retry
 def call_orchestrator_count(url: str):
     response = requests.get(url, headers=HEADERS)
+    if response.status_code == 401:
+        return None, "Unauthorized - check your UiPath access token."
+    if response.status_code == 429:
+        raise requests.exceptions.RequestException("Rate limited - retrying...")
+    if response.status_code >= 500:
+        raise requests.exceptions.RequestException(f"Server error {response.status_code} - retrying...")
     if response.status_code != 200:
-        return None, f"❌ API failed | {response.status_code} | {response.text}"
+        return None, f"API failed | {response.status_code} | {response.text}"
     data = response.json()
     count = data.get("@odata.count")
     return count, None
+
+
+
+
 
 
 # -------------------------
@@ -242,7 +280,7 @@ def extract_faulted_error_summaries(jobs: list) -> list[dict]:
     summaries = []
     query_llm = ChatOpenAI(model="gpt-4o-mini",
             temperature=0,
-            max_tokens=1000,
+            max_tokens=4000,
             base_url="https://openrouter.ai/api/v1",
             api_key=os.getenv("OPENROUTER_API_KEY")
                         )
@@ -468,7 +506,7 @@ def get_queue_item_status_tool() -> str:
 llm = ChatOpenAI(
                     model="gpt-4o-mini",
                     temperature=0,
-                    max_tokens=1000,
+                    max_tokens=4000,
                     base_url="https://openrouter.ai/api/v1",
                     api_key=os.getenv("OPENROUTER_API_KEY")
                 )
@@ -502,18 +540,25 @@ Use when user asks about:
 - Solutions or fixes for errors
 - Root cause analysis
 - Job diagnostics or recommendations
+- ANY vague complaint that something is wrong or broken
+- ANY request to fix jobs or processes
 
 Examples:
 - "why are my jobs failing?" → analyze_faulted_jobs_tool
 - "give me fixes for faulted jobs" → analyze_faulted_jobs_tool
 - "what's wrong with my processes?" → analyze_faulted_jobs_tool
+- "fix my jobs" → analyze_faulted_jobs_tool
+- "something is broken" → analyze_faulted_jobs_tool
+- "why are they failing?" → analyze_faulted_jobs_tool
 
 ### get_faulted_jobs_tool
-Use ONLY when user wants to LIST faulted jobs without needing solutions.
+Use ONLY when user explicitly asks to SEE or LIST faulted jobs.
+Do NOT use for vague complaints, fix requests, or diagnostic questions.
 
 Examples:
 - "show me faulted jobs" → get_faulted_jobs_tool
 - "list all failed jobs" → get_faulted_jobs_tool
+- "display faulted jobs" → get_faulted_jobs_tool
 
 ### get_running_jobs_tool
 Examples:
@@ -635,48 +680,109 @@ async def check_output_guardrails(agent_output: str) -> tuple[bool, str]:
 st.title("🤖 UiPath Orchestrator Support Chatbot")
 st.caption("Fetch Jobs, Assets, Queues, Running & Available Processes from UiPath Orchestrator.")
 
+
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
-
-user_prompt = st.text_input("Type your message:")
-send = st.button("Send")
-
-if send and user_prompt.strip():
-    st.session_state.chat_history.append({"role": "user", "content": user_prompt})
-
-    with st.spinner("Thinking..."):
-        try:
-            is_safe, guardrails_response = asyncio.run(
-                apply_guardrails(user_prompt)
-            )
-            if not is_safe:
-                bot_reply = guardrails_response
-            else:
-
-                #result = agent_executor.invoke({"messages": [("user", user_prompt)]})
-                #Below line helps to keep memory and give better answer even when context is no explicity given
-                result = agent_executor.invoke({"messages": st.session_state.chat_history})
-                bot_reply = result["messages"][-1].content
-
-                is_safe_output, bot_reply = asyncio.run(
-                    check_output_guardrails(bot_reply)
-                )
-
-                if not is_safe_output:
-                    bot_reply = bot_reply
-                    
-        except Exception as e:
-            bot_reply = f"❌ Error: {str(e)}"
-
-    st.session_state.chat_history.append({"role": "assistant", "content": bot_reply})
-
-st.markdown("## 💬 Conversation")
-
 for msg in st.session_state.chat_history:
     if msg["role"] == "user":
-        st.markdown(f"🧑‍💻 **You:** {msg['content']}")
+        with st.chat_message("user"):
+            st.markdown(msg["content"])
+        #st.markdown(f"🧑‍💻 **You:** {msg['content']}")
     else:
-        st.markdown("🤖 **Bot:**")
-        st.code(msg["content"], language="text")
+        with st.chat_message("assistant"):
+            st.markdown(msg["content"])
 
-st.markdown("---")
+user_prompt = st.chat_input("Type your message:")
+#send = st.button("Send") - to remove output coming twice
+
+#if send and user_prompt.strip(): -  to remove output coming twice
+if user_prompt:
+    with st.chat_message("user"):
+        st.markdown(user_prompt)
+    st.session_state.chat_history.append({"role": "user", "content": user_prompt})
+
+    #Old code without Streaming
+    # with st.spinner("Thinking..."):
+    #     try:
+    #         is_safe, guardrails_response = asyncio.run(
+    #             apply_guardrails(user_prompt)
+    #         )
+    #         if not is_safe:
+    #             bot_reply = guardrails_response
+    #         else:
+
+    #             #result = agent_executor.invoke({"messages": [("user", user_prompt)]})
+    #             #Below line helps to keep memory and give better answer even when context is no explicity given
+    #             result = agent_executor.invoke({"messages": st.session_state.chat_history})
+    #             bot_reply = result["messages"][-1].content
+
+    #             is_safe_output, bot_reply = asyncio.run(
+    #                 check_output_guardrails(bot_reply)
+    #             )
+
+    #             if not is_safe_output:
+    #                 bot_reply = "🚫 Response blocked due to sensitive content."
+                    
+    #     except Exception as e:
+    #         bot_reply = f"❌ Error: {str(e)}"
+
+    # st.session_state.chat_history.append({"role": "assistant", "content": bot_reply})
+    try:
+        is_safe, guardrails_response = asyncio.run(
+            apply_guardrails(user_prompt)
+        )
+        if not is_safe:
+            with st.chat_message("assistant"):
+                st.markdown(guardrails_response)
+            st.session_state.chat_history.append({
+                "role":"assistant",
+                "content": guardrails_response
+            })
+        else:
+            # def stream_response():
+            #     for chunk in agent_executor.stream(
+            #         {"messages":st.session_state.chat_history}
+            #     ):
+            #         if "agent" in chunk:
+            #             content = chunk["agent"]["messages"][0].content
+            #             if content:
+            #                 yield content
+            def stream_response():
+                for chunk, metadata in agent_executor.stream(
+                    {"messages": st.session_state.chat_history},
+                    stream_mode="messages"
+                ):
+                    if (hasattr(chunk, "content") and
+                        chunk.content and
+                        metadata.get("langgraph_node") == "agent"):
+                        yield chunk.content
+            with st.chat_message("assistant"):
+                bot_reply = st.write_stream(stream_response())
+
+
+            is_safe_output, final_reply = asyncio.run(
+                check_output_guardrails(bot_reply)
+            )
+
+            if not is_safe_output:
+                bot_reply = final_reply
+
+            st.session_state.chat_history.append({
+                "role": "assistant",
+                "content":bot_reply
+            })
+                
+    except Exception as e:
+        with st.chat_message("assistant"):
+            st.markdown(f"❌ Error: {str(e)}")
+        st.session_state.chat_history.append({
+            "role":"assistant",
+            "content":f"Error: {str(e)}"
+        })
+
+
+#st.markdown("## 💬 Conversation") - No longer needed as streaming got implemented
+
+
+
+#st.markdown("---") - No longer needed as streaming got implemented
