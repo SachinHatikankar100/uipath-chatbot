@@ -1,0 +1,36 @@
+# .dockerignore
+
+# Secrets — NEVER bake into image
+.env
+.env.*
+
+# Virtual environments — handled by multi-stage build
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+# Git
+.git/
+.gitignore
+
+# Build/CI artifacts (not needed at runtime)
+Dockerfile
+Dockerfile.jenkins
+Jenkinsfile
+*.sh
+
+# Dev / test / docs
+TestCases.xlsx
+test_cases.json
+get_lib_versions.py
+deployment-blog.md
+evaluate.py
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
