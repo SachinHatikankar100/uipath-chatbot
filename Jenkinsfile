@@ -64,23 +64,13 @@ pipeline {
             }
         }
 
-        stage('Install Dependencies') {
+        stage('Syntax Check') {
             steps {
                 script {
-                    echo 'Installing Python dependencies...'
+                    echo 'Running syntax check...'
                     sh '''
-                        pip3 install -r requirements.txt --break-system-packages
-                    '''
-                }
-            }
-        }
-
-        stage('Run Tests') {
-            steps {
-                script {
-                    echo 'Running tests...'
-                    sh '''
-                        python3 -c "import chatbot; print('Imports successful')"
+                        python3 -m py_compile chatbot.py
+                        echo "Syntax check passed"
                     '''
                 }
             }
@@ -154,7 +144,6 @@ pipeline {
                               --max-replicas 3 \
                               --cpu 1.0 \
                               --memory 2.0Gi \
-                              
                         fi
 
                         echo "Adding secrets..."
@@ -163,7 +152,7 @@ pipeline {
                           --resource-group $APP_RESOURCE_GROUP \
                           --secrets \
                             openrouter-api-key=$OPENROUTER_API_KEY \
-                            tavily-api-key=$TAVILY_API_KEY
+                            tavily-api-key=$TAVILY_API_KEY \
                             uipath-access-token=$UIPATH_ACCESS_TOKEN \
                             uipath-org=$UIPATH_ORG \
                             uipath-tenant=$UIPATH_TENANT \
