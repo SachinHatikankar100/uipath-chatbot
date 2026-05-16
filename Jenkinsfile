@@ -143,7 +143,7 @@ pipeline {
                               --min-replicas 1 \
                               --max-replicas 3 \
                               --cpu 1.0 \
-                              --memory 2.0Gi \
+                              --memory 2.0Gi
                         fi
 
                         echo "Adding secrets..."
