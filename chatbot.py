@@ -152,7 +152,7 @@ def format_jobs_table(jobs, state):
             "Info": job.get("Info")
         })
 
-    table = tabulate(pretty_jobs, headers="keys", tablefmt="fancy_grid")
+    table = tabulate(pretty_jobs, headers="keys", tablefmt="html")
     return f"📌 Jobs in state: {state}\n\n{table}"
 
 
