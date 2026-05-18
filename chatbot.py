@@ -243,7 +243,7 @@ def format_running_processes(process_map):
         return "✅ No processes are currently running."
     rows = [{"Process Name": name, "Running Jobs": count}
             for name, count in sorted(process_map.items(), key=lambda x: x[1], reverse=True)]
-    return f"🟢 Running Processes\n\n{tabulate(rows, headers='keys', tablefmt='fancy_grid')}"
+    return f"🟢 Running Processes\n\n{tabulate(rows, headers='keys', tablefmt='html')}"
 
 
 def format_available_processes(processes):
@@ -251,7 +251,7 @@ def format_available_processes(processes):
         return "⚠️ No processes found in Orchestrator."
     rows = [{"Name": p.get("Name"), "ProcessKey": p.get("ProcessKey"), "EnvironmentId": p.get("EnvironmentId")}
             for p in processes]
-    return f"📦 Available Processes ({len(processes)})\n\n{tabulate(rows, headers='keys', tablefmt='fancy_grid')}"
+    return f"📦 Available Processes ({len(processes)})\n\n{tabulate(rows, headers='keys', tablefmt='html')}"
 
 
 def format_queue_item_status(records):
@@ -266,7 +266,7 @@ def format_queue_item_status(records):
         "Total": r.get("TotalNumberOfTransactions"),
         "Report Type": r.get("ReportType"),
     } for r in records]
-    return f"📊 Queue Processing Status ({len(records)} records)\n\n{tabulate(rows, headers='keys', tablefmt='fancy_grid')}"
+    return f"📊 Queue Processing Status ({len(records)} records)\n\n{tabulate(rows, headers='keys', tablefmt='html')}"
 
 
 # -------------------------
@@ -280,7 +280,7 @@ def extract_faulted_error_summaries(jobs: list) -> list[dict]:
     summaries = []
     query_llm = ChatOpenAI(model="gpt-4o-mini",
             temperature=0,
-            max_tokens=4000,
+            max_tokens=3000,
             base_url="https://openrouter.ai/api/v1",
             api_key=os.getenv("OPENROUTER_API_KEY")
                         )
